@@ -12,7 +12,7 @@ legacy="/Applications/MyTypeless.app"  # pre-rename bundle name
 
 work="$(mktemp -d)"
 mount="$work/mnt"
-cleanup() { hdiutil detach -quiet -force "$mount" 2>/dev/null || true; rm -rf "$work"; }
+cleanup() { hdiutil detach -quiet -force "$mount" 2>/dev/null || true; rm -rf "$work"; [[ -n "${staged:-}" ]] && rm -rf "$staged" 2>/dev/null; true; }
 trap cleanup EXIT INT TERM
 
 print "Finding the latest release…"
@@ -28,7 +28,8 @@ app="$mount/NoType.app"
 
 print "Verifying signature…"
 codesign --verify --strict --deep "$app"
-codesign --verify -R="identifier \"$bundle_id\" and anchor apple generic and certificate leaf[subject.OU] = \"$team\"" "$app"
+requirement="identifier \"$bundle_id\" and anchor apple generic and certificate leaf[subject.OU] = \"$team\""
+codesign --verify -R="$requirement" "$app"
 spctl --assess --type execute "$app"
 
 version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")"
@@ -38,8 +39,22 @@ while pgrep -qf "/Applications/(NoType|MyTypeless)\.app/Contents/MacOS/"; do sle
 print "Installing NoType $version to /Applications…"
 sudo_if_needed=()
 [[ -w /Applications ]] || sudo_if_needed=(sudo)  # admin users can write /Applications without sudo
-$sudo_if_needed rm -rf "$target" "$legacy"
-$sudo_if_needed ditto "$app" "$target"
+# Copy next to the target and re-verify that copy, then swap; the old app is removed only after the new one is in place.
+staged="/Applications/.NoType-install-$$.app"
+$sudo_if_needed rm -rf "$staged"
+$sudo_if_needed ditto "$app" "$staged"
+codesign --verify --strict --deep -R="$requirement" "$staged"
+backup=""
+if [[ -e "$target" ]]; then
+    backup="/Applications/.NoType-backup-$$.app"
+    $sudo_if_needed mv "$target" "$backup"
+fi
+if ! $sudo_if_needed mv "$staged" "$target"; then
+    [[ -n "$backup" ]] && $sudo_if_needed mv "$backup" "$target"
+    print -u2 "Install failed; the previous version was kept"
+    exit 1
+fi
+$sudo_if_needed rm -rf "$backup" "$legacy"
 
 open "$target"
 print "Done. NoType $version is running. Follow the permission guide on first launch."
