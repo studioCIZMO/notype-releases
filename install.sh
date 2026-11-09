@@ -1,10 +1,10 @@
 #!/bin/zsh
 # Install or update NoType (formerly MyTypeless) from the latest public release:
-#   curl -fsSL https://raw.githubusercontent.com/studioCIZMO/mytypeless-releases/main/install.sh | zsh
+#   curl -fsSL https://raw.githubusercontent.com/studioCIZMO/notype-releases/main/install.sh | zsh
 # The app is installed only if it is signed by our Developer ID team and passes Gatekeeper (notarized).
 set -euo pipefail
 
-repo="studioCIZMO/mytypeless-releases"
+repo="studioCIZMO/notype-releases"
 team="N723QM4R64"
 bundle_id="dev.mytypeless.app"
 target="/Applications/NoType.app"
